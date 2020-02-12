@@ -87,7 +87,25 @@ func ClientImportLocal(ctx context.Context, f io.Reader) (cid.Cid, error) {
 
 	localDAG := merkledag.NewDAGService(bsvc)
 
-	file := files.NewReaderFile(f)
+	r, w := io.Pipe()
+	defer r.Close()
+	go func() {
+		defer w.Close()
+		written, err := io.Copy(w, f)
+		if err != nil {
+			fmt.Println("Error", err)
+		}
+		fmt.Println("Written:", written)
+	}()
+
+	/*
+		data, _ := ioutil.ReadAll(r)
+		fmt.Println("Data:", string(data))
+		fmt.Println("Data:", data)
+		return cid.Undef, nil
+	*/
+	file := files.NewReaderFile(r)
+	// file := files.NewReaderFile(f)
 
 	bufferedDS := ipld.NewBufferedDAG(ctx, localDAG)
 
@@ -119,6 +137,14 @@ func TestClientImportLocal(t *testing.T) {
 		fmt.Println("cid:", cid)
 		fmt.Fprintf(w, "cid: %v\n", cid)
 	})
+	http.HandleFunc("/import2", func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			fmt.Println("import2 err:", err)
+		}
+		fmt.Println("import2 body:", body)
+		fmt.Fprintf(w, "import2\n")
+	})
 	fmt.Println("Jim1")
 	srv := &http.Server{
 		Addr:    ":8080",
@@ -126,7 +152,7 @@ func TestClientImportLocal(t *testing.T) {
 	}
 	go func() {
 		client := &http.Client{}
-		url := "http://localhost:8080/import"
+		url := "http://localhost:8081/import"
 		f, err := os.Open("/tmp/data")
 		if err != nil {
 			t.Error(err)
