@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"os"
 	"testing"
 
@@ -105,17 +109,45 @@ func ClientImportLocal(ctx context.Context, f io.Reader) (cid.Cid, error) {
 
 	return nd.Cid(), bufferedDS.Commit()
 }
-
-func Abs(n int) int {
-	if n < 0 {
-		return -n
+func TestClientImportLocal(t *testing.T) {
+	http.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.Background()
+		cid, err := ClientImportLocal(ctx, r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Println("cid:", cid)
+		fmt.Fprintf(w, "cid: %v\n", cid)
+	})
+	fmt.Println("Jim1")
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: http.DefaultServeMux,
 	}
-	return n
-}
+	go func() {
+		client := &http.Client{}
+		url := "http://localhost:8080/import"
+		f, err := os.Open("/tmp/data")
+		if err != nil {
+			t.Error(err)
+		}
+		r := bufio.NewReader(f)
+		req, err := http.NewRequest("PUT", url, r)
+		if err != nil {
+			t.Error(err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Error(err)
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Println("Body:", string(body))
+		// srv.Close()
+	}()
 
-func TestAbs(t *testing.T) {
-	got := Abs(-1)
-	if got != 1 {
-		t.Errorf("Abs(-1) = %d; want 1", got)
-	}
+	log.Fatal(srv.ListenAndServe())
 }

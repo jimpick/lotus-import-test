@@ -1,4 +1,4 @@
-module github.com/jimpick/scratch-import-test
+module github.com/jimpick/lotus-import-test
 
 go 1.13
 
